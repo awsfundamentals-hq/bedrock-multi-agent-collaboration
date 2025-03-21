@@ -3,7 +3,13 @@ import Image from 'next/image';
 export default function Navigation() {
   return (
     <nav className="w-full flex items-center justify-between py-4 px-8 bg-[#242E41]">
-      <Image src="/awsf/logo.png" alt="Logo" width={60} height={60} />
+      <a
+        href="https://awsfundamentals.com/newsletter"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Image src="/awsf/logo.png" alt="Logo" width={60} height={60} />
+      </a>
       <div id="title" className="flex items-center mx-auto">
         <Image
           src="/awsf/bedrock.png"
