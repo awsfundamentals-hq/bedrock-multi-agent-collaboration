@@ -15,6 +15,7 @@
     "sst": "3.10.8"
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.0.0",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

@@ -1,6 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./.sst/platform/config.d.ts" />
 
+enum FoundationModels {
+  Claude3_Haiku = 'anthropic.claude-3-haiku-20240307-v1:0',
+  Claude3_5Sonnet = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+}
+
 export default $config({
   app(input) {
     return {
@@ -17,8 +22,6 @@ export default $config({
     };
   },
   async run() {
-    new sst.aws.Nextjs('frontend');
-
     const bedrockRole = new aws.iam.Role('bedrock-role', {
       assumeRolePolicy: JSON.stringify({
         Version: '2012-10-17',
@@ -68,7 +71,7 @@ export default $config({
       agentName: `${$app.stage}-engagement-predictor`,
       agentResourceRoleArn: bedrockRole.arn,
       idleSessionTtlInSeconds: 500,
-      foundationModel: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      foundationModel: FoundationModels.Claude3_Haiku,
       instruction:
         'You are a social media analytics expert who predicts post performance and optimal timing. ' +
         'For each content idea, analyze potential reach and engagement based on content type, industry benchmarks, and audience behavior patterns. ' +
@@ -86,7 +89,7 @@ export default $config({
       agentName: `${$app.stage}-content-strategist`,
       agentResourceRoleArn: bedrockRole.arn,
       idleSessionTtlInSeconds: 500,
-      foundationModel: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      foundationModel: FoundationModels.Claude3_Haiku,
       instruction:
         'You are a social media content strategist with expertise in converting business goals into engaging social posts. ' +
         'Your task is to generate creative, on-brand content ideas that align with specified campaign goals and target audience. ' +
@@ -104,9 +107,15 @@ export default $config({
       agentName: `${$app.stage}-social-media-campaign-manager`,
       agentResourceRoleArn: bedrockRole.arn,
       idleSessionTtlInSeconds: 500,
-      foundationModel: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      foundationModel: FoundationModels.Claude3_Haiku,
       instruction: 'You are a strategic campaign manager who orchestrates social media campaigns from concept to execution.',
       prepareAgent: false,
+    });
+
+    const socialMediaCampaignManagerAlias = new aws.bedrock.AgentAgentAlias('social-media-campaign-manager-alias', {
+      agentAliasName: `${$app.stage}-social-media-campaign-manager-alias`,
+      agentId: socialMediaCampaignManager.agentId,
+      description: 'Social Media Campaign Manager',
     });
 
     new aws.bedrock.AgentAgentCollaborator('content-strategist-collaborator', {
@@ -129,6 +138,28 @@ export default $config({
       relayConversationHistory: 'TO_COLLABORATOR',
       agentDescriptor: {
         aliasArn: engagementPredictorAlias.agentAliasArn,
+      },
+    });
+
+    const api = new sst.aws.Function('api', {
+      handler: 'functions/api.handler',
+      url: true,
+      timeout: '1 minute',
+      environment: {
+        AGENT_MODEL_ID: socialMediaCampaignManager.agentId,
+        AGENT_ALIAS_ID: socialMediaCampaignManagerAlias.agentAliasId,
+      },
+      permissions: [
+        {
+          actions: ['bedrock:InvokeAgent'],
+          resources: [socialMediaCampaignManagerAlias.agentAliasArn],
+        },
+      ],
+    });
+
+    new sst.aws.Nextjs('frontend', {
+      environment: {
+        NEXT_PUBLIC_API_URL: api.url,
       },
     });
   },
