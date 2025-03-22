@@ -8,6 +8,12 @@ export default $config({
       removal: input?.stage === 'production' ? 'retain' : 'remove',
       protect: ['production'].includes(input?.stage),
       home: 'aws',
+      providers: {
+        aws: {
+          region: 'us-east-1',
+          version: '6.73.0',
+        },
+      },
     };
   },
   async run() {
@@ -34,10 +40,7 @@ export default $config({
             Statement: [
               {
                 Effect: 'Allow',
-                Action: [
-                  'bedrock:InvokeModel*',
-                  'bedrock:CreateInferenceProfile',
-                ],
+                Action: ['bedrock:InvokeModel*', 'bedrock:CreateInferenceProfile'],
                 Resource: [
                   'arn:aws:bedrock:*::foundation-model/*',
                   'arn:aws:bedrock:*:*:inference-profile/*',
@@ -54,23 +57,79 @@ export default $config({
                   'bedrock:UntagResource',
                   'bedrock:ListTagsForResource',
                 ],
-                Resource: [
-                  'arn:aws:bedrock:*:*:inference-profile/*',
-                  'arn:aws:bedrock:*:*:application-inference-profile/*',
-                ],
+                Resource: ['arn:aws:bedrock:*:*:inference-profile/*', 'arn:aws:bedrock:*:*:application-inference-profile/*'],
               },
             ],
           }),
         },
       ],
     });
-    const bedrockAgent = new aws.bedrock.AgentAgent('bedrock-agent', {
-      agentName: 'test-agent-two',
+    const engagementPredictor = new aws.bedrock.AgentAgent('engagement-predictor', {
+      agentName: `${$app.stage}-engagement-predictor`,
       agentResourceRoleArn: bedrockRole.arn,
       idleSessionTtlInSeconds: 500,
       foundationModel: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
       instruction:
-        'You are a helpful assistant specialized in AWS services. Your primary goal is to provide accurate, detailed information about AWS resources, best practices, and implementation strategies. You should always prioritize official AWS documentation when answering questions, and clearly indicate when you are uncertain about a specific detail. When users ask about code, provide complete, working examples with proper error handling and follow AWS security best practices.',
+        'You are a social media analytics expert who predicts post performance and optimal timing. ' +
+        'For each content idea, analyze potential reach and engagement based on content type, industry benchmarks, and audience behavior patterns. ' +
+        'Your task is to estimate reach, engagement rate, and determine the best posting time (day/hour). ' +
+        'Support each prediction with data-driven reasoning and industry-specific insights. ' +
+        'Focus on actionable metrics that will maximize campaign impact.',
+    });
+    const engagementPredictorAlias = new aws.bedrock.AgentAgentAlias('engagement-predictor-alias', {
+      agentAliasName: `${$app.stage}-engagement-predictor-alias`,
+      agentId: engagementPredictor.agentId,
+      description: 'Engagement Predictor',
+    });
+
+    const contentStrategist = new aws.bedrock.AgentAgent('content-strategist', {
+      agentName: `${$app.stage}-content-strategist`,
+      agentResourceRoleArn: bedrockRole.arn,
+      idleSessionTtlInSeconds: 500,
+      foundationModel: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      instruction:
+        'You are a social media content strategist with expertise in converting business goals into engaging social posts. ' +
+        'Your task is to generate creative, on-brand content ideas that align with specified campaign goals and target audience. ' +
+        'Each suggestion should include a topic, content type (image/video/text/poll), specific copy, and relevant hashtags. ' +
+        'Focus on variety, authenticity, and ensuring each post serves a strategic purpose.',
+    });
+    const contentStrategistAlias = new aws.bedrock.AgentAgentAlias('content-strategist-alias', {
+      agentAliasName: `${$app.stage}-content-strategist-alias`,
+      agentId: contentStrategist.agentId,
+      description: 'Content Strategist',
+    });
+
+    const socialMediaCampaignManager = new aws.bedrock.AgentAgent('social-media-campaign-manager', {
+      agentCollaboration: 'SUPERVISOR',
+      agentName: `${$app.stage}-social-media-campaign-manager`,
+      agentResourceRoleArn: bedrockRole.arn,
+      idleSessionTtlInSeconds: 500,
+      foundationModel: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+      instruction: 'You are a strategic campaign manager who orchestrates social media campaigns from concept to execution.',
+      prepareAgent: false,
+    });
+
+    new aws.bedrock.AgentAgentCollaborator('content-strategist-collaborator', {
+      agentId: socialMediaCampaignManager.agentId,
+      collaborationInstruction:
+        'You can invoke this agent for social media content strategy tasks ' +
+        'such as converting business goals into engaging social posts. ' +
+        'The agent generates creative, on-brand content ideas that align with specified campaign goals and target audience.',
+      collaboratorName: 'content-strategist',
+      relayConversationHistory: 'TO_COLLABORATOR',
+      agentDescriptor: {
+        aliasArn: contentStrategistAlias.agentAliasArn,
+      },
+    });
+
+    new aws.bedrock.AgentAgentCollaborator('engagement-predictor-collaborator', {
+      agentId: socialMediaCampaignManager.agentId,
+      collaborationInstruction: 'You can invoke this agent for social media analytics to predict post performance and optimal timing.',
+      collaboratorName: 'engagement-predictor',
+      relayConversationHistory: 'TO_COLLABORATOR',
+      agentDescriptor: {
+        aliasArn: engagementPredictorAlias.agentAliasArn,
+      },
     });
   },
 });
