@@ -113,58 +113,60 @@ export default $config({
       idleSessionTtlInSeconds: 500,
       foundationModel: FoundationModels.Claude3_Haiku,
       instruction: 'You are a strategic campaign manager who orchestrates social media campaigns from concept to execution.',
-      prepareAgent: false,
+      prepareAgent: true,
     });
 
-    const socialMediaCampaignManagerAlias = new aws.bedrock.AgentAgentAlias('social-media-campaign-manager-alias', {
-      agentAliasName: `${$app.stage}-social-media-campaign-manager-alias`,
-      agentId: socialMediaCampaignManager.agentId,
-      description: 'Social Media Campaign Manager',
-    });
+    socialMediaCampaignManager.agentId.apply((agentId) => {
+      const socialMediaCampaignManagerAlias = new aws.bedrock.AgentAgentAlias('social-media-campaign-manager-alias', {
+        agentAliasName: `${$app.stage}-social-media-campaign-manager-alias`,
+        agentId,
+        description: 'Social Media Campaign Manager',
+      });
 
-    new aws.bedrock.AgentAgentCollaborator('content-strategist-collaborator', {
-      agentId: socialMediaCampaignManager.agentId,
-      collaborationInstruction:
-        'You can invoke this agent for social media content strategy tasks ' +
-        'such as converting business goals into engaging social posts. ' +
-        'The agent generates creative, on-brand content ideas that align with specified campaign goals and target audience.',
-      collaboratorName: 'content-strategist',
-      relayConversationHistory: 'TO_COLLABORATOR',
-      agentDescriptor: {
-        aliasArn: contentStrategistAlias.agentAliasArn,
-      },
-    });
-
-    new aws.bedrock.AgentAgentCollaborator('engagement-predictor-collaborator', {
-      agentId: socialMediaCampaignManager.agentId,
-      collaborationInstruction: 'You can invoke this agent for social media analytics to predict post performance and optimal timing.',
-      collaboratorName: 'engagement-predictor',
-      relayConversationHistory: 'TO_COLLABORATOR',
-      agentDescriptor: {
-        aliasArn: engagementPredictorAlias.agentAliasArn,
-      },
-    });
-
-    const api = new sst.aws.Function('api', {
-      handler: 'functions/api.handler',
-      url: true,
-      timeout: '1 minute',
-      environment: {
-        AGENT_MODEL_ID: socialMediaCampaignManager.agentId,
-        AGENT_ALIAS_ID: socialMediaCampaignManagerAlias.agentAliasId,
-      },
-      permissions: [
-        {
-          actions: ['bedrock:InvokeAgent'],
-          resources: [socialMediaCampaignManagerAlias.agentAliasArn],
+      new aws.bedrock.AgentAgentCollaborator('content-strategist-collaborator', {
+        agentId,
+        collaborationInstruction:
+          'You can invoke this agent for social media content strategy tasks ' +
+          'such as converting business goals into engaging social posts. ' +
+          'The agent generates creative, on-brand content ideas that align with specified campaign goals and target audience.',
+        collaboratorName: 'content-strategist',
+        relayConversationHistory: 'TO_COLLABORATOR',
+        agentDescriptor: {
+          aliasArn: contentStrategistAlias.agentAliasArn,
         },
-      ],
-    });
+      });
 
-    new sst.aws.Nextjs('frontend', {
-      environment: {
-        NEXT_PUBLIC_API_URL: api.url,
-      },
+      new aws.bedrock.AgentAgentCollaborator('engagement-predictor-collaborator', {
+        agentId,
+        collaborationInstruction: 'You can invoke this agent for social media analytics to predict post performance and optimal timing.',
+        collaboratorName: 'engagement-predictor',
+        relayConversationHistory: 'TO_COLLABORATOR',
+        agentDescriptor: {
+          aliasArn: engagementPredictorAlias.agentAliasArn,
+        },
+      });
+
+      const api = new sst.aws.Function('api', {
+        handler: 'functions/api.handler',
+        url: true,
+        timeout: '1 minute',
+        environment: {
+          AGENT_MODEL_ID: socialMediaCampaignManager.agentId,
+          AGENT_ALIAS_ID: socialMediaCampaignManagerAlias.agentAliasId,
+        },
+        permissions: [
+          {
+            actions: ['bedrock:InvokeAgent'],
+            resources: [socialMediaCampaignManagerAlias.agentAliasArn],
+          },
+        ],
+      });
+
+      new sst.aws.Nextjs('frontend', {
+        environment: {
+          NEXT_PUBLIC_API_URL: api.url,
+        },
+      });
     });
   },
 });
