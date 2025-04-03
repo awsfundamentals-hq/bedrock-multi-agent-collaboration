@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 export default function PromptInput() {
   const [prompt, setPrompt] = useState(
-    `Create a social media campain for AWS Fundamentals for the next week with 4 posts for LinkedIn and 4 for twitter.`
+    `Create a social media campaign for AWS Fundamentals for the next week with 4 posts for LinkedIn and 4 for twitter.`
   );
   const [isLoading, setIsLoading] = useState(false);
 
