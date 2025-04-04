@@ -64,8 +64,8 @@ export default $config({
       agentCollaboration: 'SUPERVISOR',
       agentResourceRoleArn: bedrockRole.arn,
       foundationModel: FoundationModels.Amazon_Titan_Text_Express,
-      // after the creation of the agents and the collaborator assignments are done,
-      // this needs to be set to true
+      // set this to 'false' on the initial deployment, so that the collaborators can be added
+      // before the agent is prepared
       prepareAgent: true,
       instruction:
         'You are a story creator. You need to create the story based on the provided genre and ' +
@@ -89,10 +89,18 @@ export default $config({
       ],
     });
 
-    const api = new sst.aws.Function('api', {
-      handler: 'functions/api.handler',
+    const storiesTable = new sst.aws.Dynamo('stories', {
+      fields: {
+        id: 'string',
+      },
+      primaryIndex: { hashKey: 'id' },
+    });
+
+    const storyCreatorFunction = new sst.aws.Function('story-creator', {
+      handler: 'functions/story-creator.handler',
       url: true,
-      timeout: '1 minute',
+      timeout: '2 minutes',
+      link: [storiesTable],
       environment: {
         AGENT_MODEL_ID: storyCreator.agentId,
         AGENT_ALIAS_ID: storyCreatorAlias?.agentAliasId!,
@@ -101,6 +109,22 @@ export default $config({
         {
           actions: ['bedrock:InvokeAgent'],
           resources: ['*'],
+        },
+      ],
+    });
+
+    const api = new sst.aws.Function('api', {
+      handler: 'functions/api.handler',
+      url: true,
+      timeout: '1 minute',
+      link: [storiesTable],
+      environment: {
+        STORY_CREATOR_FUNCTION_NAME: storyCreatorFunction.name,
+      },
+      permissions: [
+        {
+          actions: ['lambda:InvokeFunction'],
+          resources: [storyCreatorFunction.arn],
         },
       ],
     });

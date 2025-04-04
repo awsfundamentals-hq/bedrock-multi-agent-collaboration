@@ -13,6 +13,15 @@ declare module "sst" {
     "frontend": {
       "type": "sst.aws.Nextjs"
     }
+    "stories": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "story-creator": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
+    }
   }
 }
 /// <reference path="sst-env.d.ts" />

@@ -1,16 +1,34 @@
-import { BedrockAgentRuntimeClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agent-runtime';
+import { DynamoDBClient, ScanCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { APIGatewayProxyEventV2 } from 'aws-lambda';
+import { Resource } from 'sst';
 
-const client = new BedrockAgentRuntimeClient({ region: 'us-east-1' });
+const lambdaClient = new LambdaClient({ region: 'us-east-1' });
+const dynamoDB = new DynamoDBClient({ region: 'us-east-1' });
+const storyCreatorFunctionName = process.env.STORY_CREATOR_FUNCTION_NAME;
 
-const agentId = process.env.AGENT_MODEL_ID;
-const agentAliasId = process.env.AGENT_ALIAS_ID;
+export const handler = async (event: APIGatewayProxyEventV2) => {
+  if (event.requestContext.http.method === 'GET') {
+    const command = new ScanCommand({
+      TableName: Resource.stories.name,
+    });
 
-export const handler = async (event: any) => {
-  console.info(`Agent ID: ${agentId}`);
-  console.info(`Agent Alias ID: ${agentAliasId}`);
+    const result = await dynamoDB.send(command);
+    const stories =
+      result.Items?.map((item) => ({
+        id: item.id.S,
+        prompt: item.prompt.S,
+        story: item.story?.S,
+      })) || [];
 
-  try {
-    const body = JSON.parse(event.body);
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ stories }),
+    };
+  }
+
+  if (event.requestContext.http.method === 'POST') {
+    const body = JSON.parse(event.body ?? '{}');
     const prompt = body.prompt;
 
     if (!prompt) {
@@ -20,41 +38,47 @@ export const handler = async (event: any) => {
       };
     }
 
-    const command = new InvokeAgentCommand({
-      agentId,
-      agentAliasId,
-      sessionId: Date.now().toString(),
-      inputText: prompt,
+    const command = new InvokeCommand({
+      FunctionName: storyCreatorFunctionName,
+      InvocationType: 'Event',
+      Payload: JSON.stringify({ prompt }),
     });
 
-    const response = await client.send(command);
-    let finalResponse = '';
-
-    if (response.completion && typeof response.completion === 'object' && Symbol.asyncIterator in response.completion) {
-      const stream = response.completion as AsyncIterable<any>;
-      const chunks = [];
-      for await (const chunk of stream) {
-        chunks.push(chunk);
-      }
-
-      const lastChunk = chunks[chunks.length - 1];
-      if (lastChunk.chunk && lastChunk.chunk.bytes) {
-        const bytes = Object.values(lastChunk.chunk.bytes) as number[];
-        finalResponse = String.fromCharCode(...bytes);
-      }
-    }
-
-    console.info(`Answer received: ${finalResponse}`);
+    await lambdaClient.send(command);
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ answer: finalResponse }),
-    };
-  } catch (error) {
-    console.error('Error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Internal server error' }),
+      body: JSON.stringify({ message: 'Story creation started' }),
     };
   }
+
+  if (event.requestContext.http.method === 'DELETE') {
+    const storyId = event.queryStringParameters?.id;
+
+    if (!storyId) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Story ID is required' }),
+      };
+    }
+
+    const command = new DeleteItemCommand({
+      TableName: Resource.stories.name,
+      Key: {
+        id: { S: storyId },
+      },
+    });
+
+    await dynamoDB.send(command);
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: 'Story deleted successfully' }),
+    };
+  }
+
+  return {
+    statusCode: 405,
+    body: JSON.stringify({ error: 'Method not allowed' }),
+  };
 };

@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 
-export default function PromptInput() {
-  const [prompt, setPrompt] = useState(
-    `The story has to be a about a cat that always dreams about flying.`
-  );
+interface PromptInputProps {
+  onStoryCreated?: () => void;
+}
+
+export default function PromptInput({ onStoryCreated }: PromptInputProps) {
+  const [prompt, setPrompt] = useState(`The story has to be a about a cat that always dreams about flying.`);
   const [isLoading, setIsLoading] = useState(false);
-  const [response, setResponse] = useState('');
+  const [showToast, setShowToast] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,10 +28,10 @@ export default function PromptInput() {
         throw new Error('Failed to submit prompt');
       }
 
-      const data: { answer: string } = await response.json();
-      console.log('Response:', data);
-      setResponse(data.answer);
       setPrompt('');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      onStoryCreated?.();
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -39,7 +41,6 @@ export default function PromptInput() {
 
   const handleClear = () => {
     setPrompt('');
-    setResponse('');
   };
 
   return (
@@ -86,10 +87,9 @@ export default function PromptInput() {
           </div>
         </div>
       </form>
-      {response && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-lg font-semibold mb-2">Response:</h3>
-          <div className="whitespace-pre-wrap">{response}</div>
+      {showToast && (
+        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg transform transition-all duration-300 ease-in-out">
+          Story creation started successfully!
         </div>
       )}
     </div>
