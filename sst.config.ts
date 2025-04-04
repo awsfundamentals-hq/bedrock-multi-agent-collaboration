@@ -31,48 +31,48 @@ export default $config({
   async run() {
     const bedrockRole = createBedrockRole();
 
-    const { alias: engagementPredictorAlias } = createAgent({
-      name: 'engagement-predictor',
+    const { alias: plotCreatorAlias } = createAgent({
+      name: 'plot-creator',
       agentResourceRoleArn: bedrockRole.arn,
       foundationModel: FoundationModels.Claude3_Haiku,
       instruction:
-        'You are a social media analytics expert who predicts post performance and optimal timing. ' +
-        'For each content idea, analyze potential reach and engagement based on content type, industry benchmarks, and audience behavior patterns. ' +
-        'Your task is to estimate reach, engagement rate, and determine the best posting time (day/hour). ' +
-        'Support each prediction with data-driven reasoning and industry-specific insights. ' +
-        'Focus on actionable metrics that will maximize campaign impact.',
+        'You are a Plot Creator specializing in creating structured story outlines. Given ' +
+        'a genre and a premise, generate a well-structured plot, including:' +
+        '• Introduction (setting, protagonist, initial conflict)' +
+        '• Rising action (key events, character development, challenges)' +
+        '• Climax (turning point or major confrontation)' +
+        '• Resolution (how the story ends)' +
+        'Ensure the plot is compelling and logically structured. Keep it within the given constraints, if any.',
     });
 
-    const { alias: contentStrategistAlias } = createAgent({
-      name: 'content-strategist',
+    const { alias: writerAlias } = createAgent({
+      name: 'writer',
       agentResourceRoleArn: bedrockRole.arn,
       foundationModel: FoundationModels.Claude3_Haiku,
       instruction:
-        'You are a social media content strategist with expertise in converting business goals into engaging social posts. ' +
-        'Your task is to generate creative, on-brand content ideas that align with specified campaign goals and target audience. ' +
-        'Each suggestion should include a topic, content type (image/video/text/poll), specific copy, and relevant hashtags. ' +
-        'Focus on variety, authenticity, and ensuring each post serves a strategic purpose.',
+        'You are a Writing specializing in transforming structured plots into well-written stories.' +
+        ' Given a structured outline, expand it into a narrative with detailed scenes, immersive descriptions, ' +
+        'and natural dialogue. Maintain coherence and a consistent tone that fits the genre.',
     });
 
-    const { alias: socialMediaCampaignManagerAlias, agent: socialMediaCampaignManager } = createAgent({
-      name: 'social-media-campaign-manager',
+    const { alias: storyCreatorAlias, agent: storyCreator } = createAgent({
+      name: 'story-creator',
       agentCollaboration: 'SUPERVISOR',
       agentResourceRoleArn: bedrockRole.arn,
       foundationModel: FoundationModels.Claude3_Haiku,
-      instruction: 'You are a strategic campaign manager who orchestrates social media campaigns from concept to execution.',
+      instruction:
+        'You are the overseer of a story creation process, ensuring coherence, consistency, and quality. ' +
+        'Your job is to define the story genre, structure, and tone.',
       collaborators: [
         {
-          name: 'content-strategist',
-          instruction:
-            'You can invoke this agent for social media content strategy tasks ' +
-            'such as converting business goals into engaging social posts. ' +
-            'The agent generates creative, on-brand content ideas that align with specified campaign goals and target audience.',
-          aliasArn: contentStrategistAlias.agentAliasArn,
+          name: 'writer',
+          instruction: 'You can invoke this agent to write a story.',
+          aliasArn: writerAlias.agentAliasArn,
         },
         {
-          name: 'engagement-predictor',
-          instruction: 'You can invoke this agent for social media analytics to predict post performance and optimal timing.',
-          aliasArn: engagementPredictorAlias.agentAliasArn,
+          name: 'plot-creator',
+          instruction: 'You can invoke this agent to create a structured plot outline.',
+          aliasArn: plotCreatorAlias.agentAliasArn,
         },
       ],
     });
@@ -82,13 +82,13 @@ export default $config({
       url: true,
       timeout: '1 minute',
       environment: {
-        AGENT_MODEL_ID: socialMediaCampaignManager.agentId,
-        AGENT_ALIAS_ID: socialMediaCampaignManagerAlias.agentAliasId,
+        AGENT_MODEL_ID: storyCreator.agentId,
+        AGENT_ALIAS_ID: storyCreatorAlias.agentAliasId,
       },
       permissions: [
         {
           actions: ['bedrock:InvokeAgent'],
-          resources: [socialMediaCampaignManagerAlias.agentAliasArn],
+          resources: [storyCreatorAlias.agentAliasArn],
         },
       ],
     });
