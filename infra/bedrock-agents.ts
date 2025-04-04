@@ -7,12 +7,13 @@ export const createAgent = (params: {
   instruction: string;
   agentResourceRoleArn: $util.Output<string>;
   agentCollaboration?: 'SUPERVISOR' | 'COLLABORATOR';
+  prepareAgent?: boolean;
   collaborators?: {
     name: string;
     instruction: string;
     aliasArn: $util.Output<string>;
   }[];
-}): { agent: aws.bedrock.AgentAgent; alias: aws.bedrock.AgentAgentAlias } => {
+}): { agent: aws.bedrock.AgentAgent; alias?: aws.bedrock.AgentAgentAlias } => {
   const agent = new aws.bedrock.AgentAgent(params.name, {
     agentName: `${$app.stage}-${params.name}`,
     agentResourceRoleArn: params.agentResourceRoleArn,
@@ -20,7 +21,7 @@ export const createAgent = (params: {
     foundationModel: params.foundationModel,
     instruction: params.instruction,
     agentCollaboration: params.agentCollaboration,
-    prepareAgent: params.agentCollaboration !== 'SUPERVISOR',
+    prepareAgent: params.prepareAgent,
   });
 
   params.collaborators?.forEach((collaborator) => {
@@ -35,11 +36,15 @@ export const createAgent = (params: {
     });
   });
 
-  const alias = new aws.bedrock.AgentAgentAlias(params.name, {
-    agentAliasName: `${$app.stage}-${params.name}-alias`,
-    agentId: agent.agentId,
-    description: params.name,
-  });
+  let alias: aws.bedrock.AgentAgentAlias | undefined;
+
+  if (params.prepareAgent) {
+    alias = new aws.bedrock.AgentAgentAlias(params.name, {
+      agentAliasName: `${$app.stage}-${params.name}-alias`,
+      agentId: agent.agentId,
+      description: params.name,
+    });
+  }
 
   return { agent, alias };
 };

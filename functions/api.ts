@@ -28,7 +28,7 @@ export const handler = async (event: any) => {
     });
 
     const response = await client.send(command);
-    let finalResponse = response;
+    let finalResponse = '';
 
     if (response.completion && typeof response.completion === 'object' && Symbol.asyncIterator in response.completion) {
       const stream = response.completion as AsyncIterable<any>;
@@ -36,15 +36,19 @@ export const handler = async (event: any) => {
       for await (const chunk of stream) {
         chunks.push(chunk);
       }
-      finalResponse = {
-        ...response,
-        completion: chunks[chunks.length - 1],
-      };
+
+      const lastChunk = chunks[chunks.length - 1];
+      if (lastChunk.chunk && lastChunk.chunk.bytes) {
+        const bytes = Object.values(lastChunk.chunk.bytes) as number[];
+        finalResponse = String.fromCharCode(...bytes);
+      }
     }
+
+    console.info(`Answer received: ${finalResponse}`);
 
     return {
       statusCode: 200,
-      body: JSON.stringify(finalResponse),
+      body: JSON.stringify({ answer: finalResponse }),
     };
   } catch (error) {
     console.error('Error:', error);

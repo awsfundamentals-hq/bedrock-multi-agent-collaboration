@@ -34,7 +34,8 @@ export default $config({
     const { alias: plotCreatorAlias } = createAgent({
       name: 'plot-creator',
       agentResourceRoleArn: bedrockRole.arn,
-      foundationModel: FoundationModels.Claude3_Haiku,
+      prepareAgent: true,
+      foundationModel: FoundationModels.Amazon_Titan_Text_Express,
       instruction:
         'You are a Plot Creator specializing in creating structured story outlines. Given ' +
         'a genre and a premise, generate a well-structured plot, including:' +
@@ -42,37 +43,48 @@ export default $config({
         '• Rising action (key events, character development, challenges)' +
         '• Climax (turning point or major confrontation)' +
         '• Resolution (how the story ends)' +
-        'Ensure the plot is compelling and logically structured. Keep it within the given constraints, if any.',
+        'Ensure the plot is compelling and logically structured. Keep it within the given constraints, if any.' +
+        'The plot has to be less than 200 words.',
     });
 
     const { alias: writerAlias } = createAgent({
       name: 'writer',
       agentResourceRoleArn: bedrockRole.arn,
-      foundationModel: FoundationModels.Claude3_Haiku,
+      prepareAgent: true,
+      foundationModel: FoundationModels.Amazon_Titan_Text_Express,
       instruction:
-        'You are a Writing specializing in transforming structured plots into well-written stories.' +
-        ' Given a structured outline, expand it into a narrative with detailed scenes, immersive descriptions, ' +
-        'and natural dialogue. Maintain coherence and a consistent tone that fits the genre.',
+        'You are a Writing specializing in transforming structured plots into well-written stories. ' +
+        'Given a structured outline, expand it into a narrative with detailed scenes, immersive descriptions, ' +
+        'and natural dialogue. Maintain coherence and a consistent tone that fits the genre.' +
+        'The story itself has to be less than 1000 words.',
     });
 
     const { alias: storyCreatorAlias, agent: storyCreator } = createAgent({
       name: 'story-creator',
       agentCollaboration: 'SUPERVISOR',
       agentResourceRoleArn: bedrockRole.arn,
-      foundationModel: FoundationModels.Claude3_Haiku,
+      foundationModel: FoundationModels.Amazon_Titan_Text_Express,
+      // after the creation of the agents and the collaborator assignments are done,
+      // this needs to be set to true
+      prepareAgent: true,
       instruction:
-        'You are the overseer of a story creation process, ensuring coherence, consistency, and quality. ' +
-        'Your job is to define the story genre, structure, and tone.',
+        'You are a story creator. You need to create the story based on the provided genre and ' +
+        'premise with the help of the writer and plot creator agents. You are responsible for ' +
+        'providing the writer with the plot and the writer will write the story based on the plot.',
       collaborators: [
         {
           name: 'writer',
-          instruction: 'You can invoke this agent to write a story.',
-          aliasArn: writerAlias.agentAliasArn,
+          instruction:
+            'You need to invoke this agent to write the actual story. You need to provide a nicely structured plot ' +
+            'to the agent so it can write the story based on the provided details.',
+          aliasArn: writerAlias!.agentAliasArn,
         },
         {
           name: 'plot-creator',
-          instruction: 'You can invoke this agent to create a structured plot outline.',
-          aliasArn: plotCreatorAlias.agentAliasArn,
+          instruction:
+            'You need to invoke this agent to create a structured plot outline. You need to provide ' +
+            'a genre and a premise to the agent so it can create a plot.',
+          aliasArn: plotCreatorAlias!.agentAliasArn,
         },
       ],
     });
@@ -83,12 +95,12 @@ export default $config({
       timeout: '1 minute',
       environment: {
         AGENT_MODEL_ID: storyCreator.agentId,
-        AGENT_ALIAS_ID: storyCreatorAlias.agentAliasId,
+        AGENT_ALIAS_ID: storyCreatorAlias?.agentAliasId!,
       },
       permissions: [
         {
           actions: ['bedrock:InvokeAgent'],
-          resources: [storyCreatorAlias.agentAliasArn],
+          resources: ['*'],
         },
       ],
     });
