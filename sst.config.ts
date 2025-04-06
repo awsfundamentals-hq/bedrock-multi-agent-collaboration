@@ -13,6 +13,8 @@ enum FoundationModels {
   Amazon_Titan_Text_Lite = 'amazon.titan-text-lite-v1',
 }
 
+const foundationModel = FoundationModels.Claude3_Haiku;
+
 export default $config({
   app(input) {
     return {
@@ -35,55 +37,47 @@ export default $config({
       name: 'plot-creator',
       agentResourceRoleArn: bedrockRole.arn,
       prepareAgent: true,
-      foundationModel: FoundationModels.Amazon_Titan_Text_Express,
+      foundationModel,
       instruction:
-        'You are a Plot Creator specializing in creating structured story outlines. Given ' +
-        'a genre and a premise, generate a well-structured plot, including:' +
-        '• Introduction (setting, protagonist, initial conflict)' +
-        '• Rising action (key events, character development, challenges)' +
-        '• Climax (turning point or major confrontation)' +
-        '• Resolution (how the story ends)' +
-        'Ensure the plot is compelling and logically structured. Keep it within the given constraints, if any.' +
-        'The plot has to be less than 200 words.',
+        'You are a story creator responsible for producing a short story based on a given genre and premise. ' +
+        'To do this, you must:\n' +
+        '1. Invoke the "plot-creator" collaborator with the genre and premise to receive a structured plot.\n' +
+        '2. Then invoke the "writer" collaborator with the structured plot to receive the final story.\n\n' +
+        'You must not create the plot or the story yourself. Delegate all work to the collaborators.',
     });
 
     const { alias: writerAlias } = createAgent({
       name: 'writer',
       agentResourceRoleArn: bedrockRole.arn,
       prepareAgent: true,
-      foundationModel: FoundationModels.Amazon_Titan_Text_Express,
+      foundationModel,
       instruction:
-        'You are a Writing specializing in transforming structured plots into well-written stories. ' +
-        'Given a structured outline, expand it into a narrative with detailed scenes, immersive descriptions, ' +
-        'and natural dialogue. Maintain coherence and a consistent tone that fits the genre.' +
-        'The story itself has to be less than 1000 words.',
+        'You are a Plot Creator. When invoked, generate a structured story plot using the provided genre and premise. ' +
+        'Respond only with the plot. Do not add commentary or generate the full story.',
     });
 
     const { alias: storyCreatorAlias, agent: storyCreator } = createAgent({
       name: 'story-creator',
       agentCollaboration: 'SUPERVISOR',
       agentResourceRoleArn: bedrockRole.arn,
-      foundationModel: FoundationModels.Amazon_Titan_Text_Express,
+      foundationModel,
       // set this to 'false' on the initial deployment, so that the collaborators can be added
       // before the agent is prepared
       prepareAgent: true,
       instruction:
-        'You are a story creator. You need to create the story based on the provided genre and ' +
-        'premise with the help of the writer and plot creator agents. You are responsible for ' +
-        'providing the writer with the plot and the writer will write the story based on the plot.',
+        'You are a Writer. When invoked, transform the structured plot into a detailed story. ' +
+        'Respond only with the story. Do not revise the plot or add unrelated content.',
       collaborators: [
         {
           name: 'writer',
-          instruction:
-            'You need to invoke this agent to write the actual story. You need to provide a nicely structured plot ' +
-            'to the agent so it can write the story based on the provided details.',
+          instruction: 'Invoke this agent with a structured plot. It will return a full story based on that outline.',
           aliasArn: writerAlias!.agentAliasArn,
         },
         {
           name: 'plot-creator',
           instruction:
-            'You need to invoke this agent to create a structured plot outline. You need to provide ' +
-            'a genre and a premise to the agent so it can create a plot.',
+            'Invoke this agent with a genre and premise to receive a structured plot. ' +
+            'Use the result to inform the next step (story writing).',
           aliasArn: plotCreatorAlias!.agentAliasArn,
         },
       ],
